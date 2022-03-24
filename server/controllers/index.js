@@ -2,7 +2,7 @@
 const models = require('../models');
 
 // get the Cat model
-const { Cat } = models;
+const { Cat, Dog } = models;
 
 // default fake data so that we have something to work with until we make a real Cat
 const defaultData = {
@@ -83,6 +83,17 @@ const hostPage3 = (req, res) => {
   res.render('page3');
 };
 
+const hostPage4 = async (req, res) => {
+  try{
+    const docs = await Dog.find({}).lean().exec();
+
+    return res.render('page4', {dogs: docs});
+  } catch (err) {
+    console.log(err);
+    return res.status(500).json({ error: 'failed to find dogs' });
+  }
+};
+
 // Get name will return the name of the last added cat.
 const getName = (req, res) => res.json({ name: lastAdded.name });
 
@@ -147,6 +158,36 @@ const setName = async (req, res) => {
   }
 };
 
+const setNameDog = async (req, res) => {
+  if (!req.body.firstname || !req.body.lastname || !req.body.age || !req.body.breed) {
+    // If they are missing data, send back an error.
+    return res.status(400).json({ error: 'firstname, lastname, and breed, and age are all required' });
+  }
+
+  const dogData = {
+    name: `${req.body.firstname} ${req.body.lastname}`,
+    breed: req.body.breed,
+    age: req.body.age,
+  };
+
+  const newDog = new Dog(dogData);
+
+  try {
+    await newDog.save();
+
+    return res.json({
+      name: newDog.name,
+      breed: newDog.breed,
+      age: newDog.age,
+    });
+  } catch (err) {
+    // If something goes wrong while communicating with the database, log the error and send
+    // an error message back to the client.
+    console.log(err);
+    return res.status(500).json({ error: 'failed to create dog' });
+  }
+};
+
 // Function to handle searching a cat by name.
 const searchName = async (req, res) => {
   /* When the user makes a POST request, bodyParser populates req.body with the parameters
@@ -171,8 +212,10 @@ const searchName = async (req, res) => {
        matches the parameters. The downside is you cannot get multiple responses with it.
 
        One of three things will occur when trying to findOne in the database.
-        1) An error will be thrown, which will stop execution of the try block and move to the catch block.
-        2) Everything works, but the name was not found in the database returning an empty doc object.
+        1) An error will be thrown, which will stop execution of the
+           try block and move to the catch block.
+        2) Everything works, but the name was not found in the database
+           returning an empty doc object.
         3) Everything works, and an object matching the search is found.
     */
     const doc = await Cat.findOne({ name: req.query.name }).exec();
@@ -184,6 +227,33 @@ const searchName = async (req, res) => {
 
     // Otherwise, we got a result and will send it back to the user.
     return res.json({ name: doc.name, beds: doc.bedsOwned });
+  } catch (err) {
+    // If there is an error, log it and send the user an error message.
+    console.log(err);
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
+};
+
+// Function to handle searching a dog by name.
+const searchNameDog = async (req, res) => {
+  if (!req.query.name) {
+    return res.status(400).json({ error: 'Name is required to perform a search' });
+  }
+  
+  try {
+    const doc = await Dog.findOne({ name: req.query.name }).exec();
+
+    // If we do not find something that matches our search, doc will be empty.
+    if (!doc) {
+      return res.json({ error: 'No dogs found' });
+    }
+
+    // increment age and save
+    doc.age++;
+    await doc.save();
+
+    // Otherwise, we got a result and will send it back to the user.
+    return res.json({ name: doc.name, breed: doc.breed, age: doc.age });
   } catch (err) {
     // If there is an error, log it and send the user an error message.
     console.log(err);
@@ -241,9 +311,12 @@ module.exports = {
   page1: hostPage1,
   page2: hostPage2,
   page3: hostPage3,
+  page4: hostPage4,
   getName,
   setName,
+  setNameDog,
   updateLast,
   searchName,
+  searchNameDog,
   notFound,
 };
